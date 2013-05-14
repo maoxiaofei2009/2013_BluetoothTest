@@ -7,20 +7,26 @@
     <LinearLayout    
         android:layout_width="fill_parent"
     	android:layout_height="wrap_content"
-    	android:orientation="vertical" >
+    	android:orientation="horizontal" >
     	<Button 
     	    android:id="@+id/server_open"
-    	    android:layout_width="fill_parent"
+    	    android:layout_width="wrap_content"
     		android:layout_height="wrap_content"
     		android:text="打开服务端"/>
         
     	<Button 
     	    android:id="@+id/server_close"
-    	    android:layout_width="fill_parent"
+    	    android:layout_width="wrap_content"
     		android:layout_height="wrap_content"
     		android:text="关闭服务端"/>
     </LinearLayout>
     
+    <Button 
+   	    android:id="@+id/server_refreshed"
+   	    android:layout_width="fill_parent"
+   		android:layout_height="wrap_content"
+   		android:text="刷新列表"/>
+        	
 	<ListView
 	    android:id="@+id/device_list"
 	    android:layout_width="fill_parent"

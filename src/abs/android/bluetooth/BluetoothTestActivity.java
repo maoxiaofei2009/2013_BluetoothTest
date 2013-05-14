@@ -1,5 +1,7 @@
 package abs.android.bluetooth;
 
+import java.util.List;
+
 import abs.android.bluetooth.adapter.AbsBaseAdapter;
 import abs.android.bluetooth.adapter.DeviceListAdapter;
 import abs.android.bluetooth.bt.BluetoothManager;
@@ -17,6 +19,7 @@ public class BluetoothTestActivity extends Activity implements OnClickListener, 
 	
 	private Button mBtnOpenServer;
 	private Button mBtnCloseServer;
+	private Button mBtnRefresh;
 	private ListView mDeviceListView;
 	private AbsBaseAdapter<BluetoothDevice> mDeviceAdapter;
 	private BluetoothManager mBluetoothManager;
@@ -31,26 +34,33 @@ public class BluetoothTestActivity extends Activity implements OnClickListener, 
 	}
 		
 	private void initUI(){
-		mBtnOpenServer = (Button) findViewById(R.id.server_open);
+		mBtnOpenServer 	= (Button) findViewById(R.id.server_open);
 		mBtnCloseServer = (Button) findViewById(R.id.server_close);
+		mBtnRefresh 	= (Button) findViewById(R.id.server_refreshed);
 		
 		mDeviceListView = (ListView) findViewById(R.id.device_list);
 		mDeviceListView.setOnItemClickListener(this);
-		mDeviceAdapter = new DeviceListAdapter<BluetoothDevice>(this);
+		mDeviceAdapter 	= new DeviceListAdapter<BluetoothDevice>(this);
 		mDeviceListView.setAdapter(mDeviceAdapter);
 		
 		mBtnOpenServer.setOnClickListener(this);
 		mBtnCloseServer.setOnClickListener(this);
+		mBtnRefresh.setOnClickListener(this);
 	}
 	
 	private void initObject(){
-		mBluetoothManager = new BluetoothManager(this);
+		mBluetoothManager = new BluetoothManager(this, mCallback);
 		if (mBluetoothManager.checkBlutoothAvailable()){
-			mBluetoothManager.getBluetoothList();
-			
-			mDeviceAdapter.updateData(mBluetoothManager.getBluetoothList());
+			updateDeviceList(mBluetoothManager.getBluetoothDeviceList());
 		}else{
 			mBluetoothManager.enableBluetooth(this);
+		}
+	}
+	
+	private void updateDeviceList(List<BluetoothDevice> list){
+		if (mDeviceAdapter != null){
+			mDeviceAdapter.updateData(list);
+			mDeviceAdapter.notifyDataSetChanged();
 		}
 	}
 	
@@ -77,6 +87,12 @@ public class BluetoothTestActivity extends Activity implements OnClickListener, 
 			}
 		}
 		
+		if (v == mBtnRefresh){
+			if (mBluetoothManager != null){
+				mBluetoothManager.refreshBluetoothDeviceList();
+			}
+		}
+		
 	}
 
 	@Override
@@ -86,4 +102,23 @@ public class BluetoothTestActivity extends Activity implements OnClickListener, 
 			mBluetoothManager.connect(mDeviceAdapter.getItem(position));
 		}	
 	}
+	
+	
+	private BluetoothManager.Callback mCallback = new BluetoothManager.Callback(){
+		@Override
+		public void onDeviceAdded() {
+			updateDeviceList(mBluetoothManager.getBluetoothDeviceList());
+		}
+
+		@Override
+		public void onDeviceRemoved() {
+			// TODO Auto-generated method stub
+			
+		}
+
+		@Override
+		public void onDeviceRefreshed() {
+			updateDeviceList(mBluetoothManager.getBluetoothDeviceList());	
+		}
+	};
 }

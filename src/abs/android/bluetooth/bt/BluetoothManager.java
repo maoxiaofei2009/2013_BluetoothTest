@@ -1,6 +1,5 @@
 package abs.android.bluetooth.bt;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -10,41 +9,66 @@ import abs.android.bluetooth.impl.IBluetoothServer;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 
 
 
 
 public class BluetoothManager implements IBluetoothServer, IBluetoothClient{
-	private static final int REQUEST_ENABLE_BT = 0;
-	/** Called when the activity is first created. */
 	
+	public interface Callback{
+		public void onDeviceAdded();
+		public void onDeviceRemoved();
+		public void onDeviceRefreshed();
+	}
+	
+	
+	private static final int REQUEST_ENABLE_BT = 0;
 	private BluetoothAdapter mBluetoothAdapter;
-	private BroadcastReceiver mReceiver;
-	private List<BluetoothDevice> mBluetoothList;
-	private Context mContext;
+	private BluetoothDeviceCache mBluetoothDeviceCache;
+	private BluetoothReceiver mBuletoothReceiver;
+	private final Context mContext;
+	private final Callback mCallback;
 	
 	private IBluetoothServer mBluetoothServer;
 	private IBluetoothClient mBluetoothClient;
-	public BluetoothManager(Context context){
-		mContext = context;
-		
-		//If the device does not support Bluetooth, return null;
-		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-		LogUtils.d(this.getClass().getName(), "initBluetooth : " + mBluetoothAdapter);
-		
+	
+
+	public BluetoothManager(Context context, Callback callback){
+		mContext = context;	
+		mCallback = callback;
 		init();
 	}
 	
 	private void init() {
-		registerReceiver();
+		mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();	
+		mBluetoothAdapter.startDiscovery();
+		
+		mBluetoothDeviceCache = initBluetoothDeviceCache(mBluetoothAdapter);
+		
+		mBuletoothReceiver = new BluetoothReceiver(mContext, mCallback, mBluetoothDeviceCache);
+		mBuletoothReceiver.register();
+	}
+	
+	private BluetoothDeviceCache initBluetoothDeviceCache(BluetoothAdapter bluetoothAdapter){
+		BluetoothDeviceCache cache = new BluetoothDeviceCache();
+		
+		Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+		if(pairedDevices != null && pairedDevices.size()>0){
+		    for(BluetoothDevice device : pairedDevices){
+		    	LogUtils.d(this.getClass().getName(), "Name = " + device.getName());
+		    	cache.onDeviceAdded(device);
+		    }
+		}	
+		return cache;
 	}
 	
 	public void dispose(){
-		unregisterReceiver();
+		if (mBuletoothReceiver != null){
+			mBuletoothReceiver.unregister();
+			mBuletoothReceiver = null;
+		}
 	}
 	
 	public boolean checkBlutoothAvailable(){
@@ -60,63 +84,21 @@ public class BluetoothManager implements IBluetoothServer, IBluetoothClient{
 		activity.startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
 	}
 	
-	public List<BluetoothDevice> getBluetoothList(){
-		List<BluetoothDevice> list = new ArrayList<BluetoothDevice>();
-		Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
-		// If there are paired devices
-		if(pairedDevices.size()>0){
-		    // Loop through paired devices
-		    for(BluetoothDevice device : pairedDevices){
-		        // Add the name and address to an array adapter to show in a ListView
-		    	LogUtils.d(this.getClass().getName(), "Name = " + device.getName());
-		    	list.add(device);
-		    }
+	
+	public List<BluetoothDevice> getBluetoothDeviceList(){
+		if (mBluetoothDeviceCache != null){
+			return mBluetoothDeviceCache.getBluetoothList();
 		}
-		return list;
+		return null;
 	}
 	
-	private void registerReceiver(){
-		// Register the BroadcastReceiver
-		if (mReceiver == null){
-			mReceiver = new BluetoothReceiver();
-			IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-			filter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
-			filter.addAction(BluetoothDevice.ACTION_UUID);
-			filter.addAction(BluetoothDevice.ACTION_NAME_CHANGED);
-			filter.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);
-			filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
-			filter.addAction(BluetoothAdapter.ACTION_LOCAL_NAME_CHANGED);
-			mContext.registerReceiver(mReceiver, filter); // Don't forget to unregister during onDestroy
+	public void refreshBluetoothDeviceList(){
+		if (mBluetoothAdapter != null){
+			mBluetoothAdapter.startDiscovery();
 		}
 	}
 	
-	private void unregisterReceiver(){
-		if (mReceiver != null){
-			mContext.unregisterReceiver(mReceiver);
-		}
-	}
-	
-	private class BluetoothReceiver extends BroadcastReceiver{
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			LogUtils.d(this.getClass().getName(), "BluetoothReceiver action: " + intent.getAction());
-	        String action = intent.getAction();
-	        // When discovery finds a device
-	        if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-	            // Get the BluetoothDevice object from the Intent
-	            BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-	            // Add the name and address to an array adapter to show in a ListView
-	            if (mBluetoothList == null){
-	            	mBluetoothList = new ArrayList<BluetoothDevice>();
-	            }
-	            mBluetoothList.add(device);
-	        }
-		
-		}
-	}
-
-	
-	
+	//==============================================================================
 	@Override
 	public void startServer() {
 		if (mBluetoothServer == null){
@@ -134,6 +116,8 @@ public class BluetoothManager implements IBluetoothServer, IBluetoothClient{
 		
 	}
 
+	
+	//===============================================================================
 	@Override
 	public void connect(BluetoothDevice device) {
 		if (mBluetoothClient == null){
@@ -157,4 +141,6 @@ public class BluetoothManager implements IBluetoothServer, IBluetoothClient{
 		}
 		return false;
 	}
+	
+	//===============================================================================
 }
